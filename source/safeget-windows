@@ -2,11 +2,12 @@
 '''
     Safeget downloads and verifies files from online.
 
-    If you would like a simple custom safeget for your app
-    which embeds all the parameters usually passed on the
-    command line, contact support@denova.com. It's free.
-    Your users then run that simple small program to download
-    and fully verify your app, without the hassles.
+    If you would like a custom safeget for your app
+    which has all the parameters usually passed on the
+    command line, built into safeget, contact
+    support@denova.com. Your users will then simply
+    use that small program to download and fully verify
+    your app without the hassles.
 
     Learn more at https://denova.com/open_source/safeget/
 
@@ -14,7 +15,7 @@
     to verify safeget itself.
 
     Copyright 2019-2020 DeNova
-    Last modified: 2020-10-20
+    Last modified: 2020-10-04
 '''
 
 import argparse
@@ -28,7 +29,7 @@ import subprocess
 import sys
 import tempfile
 from glob import glob
-from http.cookiejar import CookieJar
+from http.cookiejar import CookieJar, CookiePolicy
 from traceback import format_exc
 from urllib.parse import urlencode, urlparse
 from urllib.request import build_opener, urlopen, HTTPCookieProcessor, ProxyHandler, Request
@@ -66,11 +67,7 @@ def main():
             parse_args()
             verify_args()
 
-            if 'app' in args:
-                notice(f'Safegetting {args.app}\n')
-
-            if 'noselfcheck' in args and not args.noselfcheck:
-                notice('Checking... ')
+            if 'no-self-check' in args and not args.no_self_check:
                 verify_safeget_itself()
 
             if not (installed('wget') and installed('gpg')): # and installed('openssl')
@@ -80,13 +77,15 @@ def main():
 
                 url = args.target
                 local_target = os.path.basename(url)
+                if 'app' in args:
+                    notice('Safegetting {}\n'.format(args.app))
                 notice('Downloading... ')
                 download(url, local_target)
 
             else:
                 local_target = args.target
                 if not os.path.exists(local_target):
-                    fail(f'file does not exist: {os.path.abspath(local_target)}')
+                    fail('file does not exist: {}'.format(os.path.abspath(local_target)))
 
             verify_file(local_target)
 
@@ -146,26 +145,43 @@ def debug(msg):
 def fail(msg):
     ''' Failure exit. '''
 
-    raise SafegetException(f'Failed: {msg}')
+    raise SafegetException('Failed: {}'.format(msg))
 
 def warn(msg):
     ''' Warn user. '''
 
     print()
-    print(f'Warning: {msg}')
+    print('Warning: {}'.format(msg))
 
 def which(program):
     ''' Return path to command. '''
 
-    WHICH_PATH = '/usr/bin/which'
+    def search_path(program):
+        path = None
 
-    # if no 'which', check for command existence with:
-    #     run(program, '--help')
-    # maybe we need 'which' for windows
-    path = run(WHICH_PATH, program)
-    if not isinstance(path, str):
-        path = path.decode()
-    path = path.strip()
+        entries = os.get_exec_path()
+        for entry in entries:
+            if os.path.exists(os.path.join(entry, program)):
+                path = entry
+                break
+
+        return path
+
+    path = None
+
+    if platform.system != 'Windows':
+        WHICH_PATH = '/usr/bin/which'
+
+        path = run(WHICH_PATH, program)
+
+    if not path:
+        path = search_path(program)
+
+    if path:
+        if not isinstance(path, str):
+            path = path.decode()
+        path = path.strip()
+
     return path
 
 def run(*command_args, **kwargs):
@@ -182,16 +198,16 @@ def run(*command_args, **kwargs):
         subprocess.check_output can escape args better.
     '''
 
-    debug(f"run \"{' '.join(command_args)}\"")
+    debug('run "{}"'.format(' '.join(command_args)))
     result = None
 
     # if there is a single arg, it can't be a command line string with args
-    if len(command_args) == 1:
+    if len(command_args) is 1:
         program = command_args[0]
         if ' ' in program:
             # the program's path won't contain a space, so it's a command line
             # run() is better able to add quotes correctly when each arg is separate
-            debug(f'DEPRECATED: run({repr(command_args)}) as shell command')
+            debug('DEPRECATED: run({}) as shell command'.format(repr(command_args)))
             kwargs['shell'] = True
 
     try:
@@ -251,7 +267,7 @@ def run(*command_args, **kwargs):
 
     except subprocess.CalledProcessError as cpe:
         debug(cpe)
-        if cpe.returncode: debug(f'    returncode: {cpe.returncode}')
+        if cpe.returncode: debug('    returncode: {}'.format(cpe.returncode))
         if cpe.stderr: debug('    stderr: {}' + cpe.stderr)
         if cpe.stdout: debug('    stdout: {}' + cpe.stdout)
         raise
@@ -263,7 +279,7 @@ def run_command_after(command):
 
     MULTIPLE_COMMANDS = ' && '
 
-    notice('Installing... \n')
+    notice('Installing... ')
     while command.find(MULTIPLE_COMMANDS) > 0:
         i = command.find(MULTIPLE_COMMANDS)
         command_args = shlex.split(command[:i])
@@ -290,13 +306,52 @@ def install_dependencies():
 
 def install_wget():
 
+    def save_wget(full_path, data):
+        with open(full_path, 'wb') as wget_file:
+            wget_file.write(data)
+
     global wget_path
 
+    if platform.system == 'Windows':
+        wget_path += '.exe'
+
+    if installed(wget_path):
+        already_installed()
+
+    else:
+        data = None
+        if platform.system == 'Windows':
+            admin_user = 'admin'
+            data = get_file('https://eternallybored.org/misc/wget/wget.exe')
+        elif platform.system == 'Darwin':
+            admin_user = 'Admin'
+            data = get_file('http://www.merenbach.com/software/wget')
+        else:
+            admin_user = 'root'
+            data = get_file('http://www.merenbach.com/software/wget')
+
+        warning = 'You probably want to install wget as {} to speed up future installations'.format(admin_user)
+        if os.geteuid() == 0:
+            paths = os.get_exec_path()
+            if paths:
+                wget_path = os.path.join(paths[0], wget_path)
+                save_wget( wget_path, data)
+            else:
+                wget_path = os.path.join(temppath(), wget_path)
+                save_wget( wget_path, data)
+                warn(warning)
+        else:
+            wget_path = os.path.join(temppath(), wget_path)
+            save_wget( wget_path, data)
+            warn(warning)
+
+    """
     # wget redirects, retries, and reports errors better than curl.
     # See http://sync-help.bittorrent.com/customer/portal/articles/1666471-checking-connectivity-with-wget
     wget_path = install('wget',
                         windows_url = 'https://eternallybored.org/misc/wget/wget.exe',
                         osx_url = 'http://www.merenbach.com/software/wget')
+    """
 
 def install_openssl():
 
@@ -307,7 +362,7 @@ def install_openssl():
                             # we might be able to use the 3MB version: https://slproweb.com/download/Win32OpenSSL_Light-1_1_0g.exe
                             windows_url = 'https://slproweb.com/download/Win32OpenSSL-1_1_0g.exe',
                             is_installer=True)
-    debug(f'openssl path: {open_ssl_path}')
+    debug('openssl path: {}'.format(open_ssl_path))
 
 def install_gpg():
 
@@ -320,7 +375,7 @@ def install_gpg():
                        # see https://gpgtools.org/
                        osx_url='https://releases.gpgtools.org/GPG_Suite-2015.09.dmg',
                        is_installer=True)
-    debug(f'gpg path: {gpg_path}')
+    debug('gpg path: {}'.format(gpg_path))
 
 def install(program, windows_url=None, osx_url=None, linux_package=None, is_installer=False):
     ''' If program is not installed, try to install it.
@@ -332,21 +387,21 @@ def install(program, windows_url=None, osx_url=None, linux_package=None, is_inst
 
     def require_root():
         if not os.geteuid() == 0:
-            fail(f'install {program}, or rerun this program as root, so it can install dependencies')
+            fail('install {}, or rerun this program as root, so it can install dependencies'.format(program))
 
     def already_installed():
-        verbose(f'{program} already installed')
+        verbose('{} already installed'.format(program))
 
     def install_done():
-        debug(f'installed {program} to {program_path}')
+        debug('installed {} to {}'.format(program, program_path))
 
     def windows_install(program, windows_url):
         url = windows_url
         verify_source(url)
         if not url:
-            fail(f'no install url for {program}')
+            fail('no install url for {}'.format(program))
 
-        verbose(f'install {program}')
+        verbose('install {}'.format(program))
 
         tempdir = tempfile.gettempdir()
         basename = os.path.basename(url)
@@ -358,7 +413,7 @@ def install(program, windows_url=None, osx_url=None, linux_package=None, is_inst
         except Exception as e:
             debug(e)
             # !! could be other reasons
-            fail(f'rerun this program as admin to install {program}')
+            fail('rerun this program as admin to install {}'.format(program))
 
         else:
             if is_installer:
@@ -376,10 +431,10 @@ def install(program, windows_url=None, osx_url=None, linux_package=None, is_inst
             url = osx_url
             verify_source(url)
             if not url:
-                fail(f'no install url for {program}')
+                fail('no install url for {}'.format(program))
 
             require_root()
-            verbose(f'{program} not found. installing...')
+            verbose('{} not found. installing...'.format(program))
             program_path = os.path.join('/usr/local/bin', program)
             download(program_path, url, wget=False)
             program = program_path
@@ -400,14 +455,14 @@ def install(program, windows_url=None, osx_url=None, linux_package=None, is_inst
 
             if linux_package is None:
                 linux_package = program
-            verbose(f'install linux package {linux_package}')
+            verbose('install linux package {}'.format(linux_package))
             # !! this assumes debian or derivative; what about redhat?
-            run('apt-get', 'install', linux_package)
+            run('apt', 'install', linux_package)
             install_done()
 
         return program
 
-    debug(f'install {program}')
+    debug('install {}'.format(program))
 
     system = platform.system()
 
@@ -421,7 +476,7 @@ def install(program, windows_url=None, osx_url=None, linux_package=None, is_inst
         program_path = linux_install(program, linux_package)
 
     else:
-        fail(f'unable to install on {system}')
+        fail('unable to install on {}'.format(system))
 
     return program_path
 
@@ -439,13 +494,45 @@ def installed(program):
 
     return is_installed
 
+def get_file(url, params=None):
+    '''
+        Get a file using python until we have wget.
+    '''
+
+    result = None
+    if args.proxy:
+        i = args.proxy.find('://')
+        if i > 0:
+            algo = args.proxy[:i]
+            ip_port = args.proxy[i+len('://'):]
+            proxy = {algo: ip_port}
+        else:
+            fail('--proxy must be in the format: https://IP:PORT or http://IP:PORT')
+
+        proxy_handler = ProxyHandler(proxy)
+        opener = build_opener(proxy_handler, HTTPCookieProcessor(CookieJar()))
+    else:
+        opener = build_opener(HTTPCookieProcessor(CookieJar()))
+
+    if params:
+        encoded_params = urlencode(PARAMS).encode()
+
+        request = Request(full_url, encoded_params)
+    else:
+        request = Request(full_url)
+
+    handle = opener.open(request)
+    result = handle.read()
+
+    return result
+
 def download(url, localpath, wget=True):
     ''' Download file using wget to localpath.
 
         wget can resume an interrupted download, and retry.
     '''
 
-    verbose(f'download {url} to {os.path.abspath(localpath)}')
+    verbose('download {} to {}'.format(url, os.path.abspath(localpath)))
 
     if wget:
 
@@ -473,9 +560,9 @@ def download(url, localpath, wget=True):
                 wget_args.append('use_proxy=yes')
                 wget_args.append('e')
                 if args.proxy.startswith('https'):
-                    wget_args.append(f'https_proxy={args.proxy}')
+                    wget_args.append('https_proxy={}'.format(args.proxy))
                 else:
-                    wget_args.append(f'http_proxy={args.proxy}')
+                    wget_args.append('http_proxy={}'.format(args.proxy))
 
             # finally add the url to get
             wget_args.append(url)
@@ -509,7 +596,7 @@ def parse_args():
         Return parsed args.
 
         Do NOT change the "def parse_args():" line above
-        without also changing customize.py in the safeget tools dir.
+        without also changing denova/src/open_source/safeget/customize.py
     '''
 
     global args
@@ -526,7 +613,7 @@ def parse_args():
     parser.add_argument('--pubkey', nargs='*',
                         help='url or file of pgp signing key')
     parser.add_argument('--sig', nargs='*',
-                        help='url or file containing pgp detached signature')
+                        help='url or file containing pgp detatched signature')
     parser.add_argument('--signedmsg', nargs='*',
                         help='url or file containing pgp signed message')
     parser.add_argument('--signedhash', nargs='*',
@@ -542,7 +629,7 @@ def parse_args():
     parser.add_argument('--test', help='test this command', action='store_true')
 
     args = parser.parse_args()
-    debug(f'args from argsparse: {vars(args)}')
+    debug('args from argsparse: {}'.format(vars(args)))
 
     return args
 
@@ -553,7 +640,7 @@ def verify_file(local_target):
     '''
 
     notice('Verifying... ')
-    verbose(f'verify target file {os.path.abspath(local_target)}')
+    verbose('verify target file {}'.format(os.path.abspath(local_target)))
 
     if args.signedmsg or args.signedhash or args.sig:
         get_pubkeys()
@@ -565,33 +652,23 @@ def verify_file(local_target):
     verify_size(local_target)
 
     if args.after or args.run:
-        notice(f'Verified {os.path.basename(local_target)}... ')
+        notice('Verified {}... '.format(os.path.basename(local_target)))
     else:
-        print(f'Verified {os.path.basename(local_target)}')
+        print('Verified {}'.format(os.path.basename(local_target)))
 
 def verify_args():
     ''' Verify args. '''
 
     if not (args.sig or
             args.signedhash or
-            args.hash):
-        fail('File signature, signed hash, or explicit hash required')
+            args.hash or
+            args.size):
+        fail('File signature, signed hash, explicit hash, or file size required')
 
     if args.size and not (args.sig or
                           args.signedhash or
                           args.hash):
-        fail('File size alone is not enough verification. File signature, signed hash, or explicit hash required.')
-
-    if args.sig and not args.pubkey:
-        fail('Detached signature found, but required PGP public key not found.')
-
-    if args.signedhash and not args.pubkey:
-        fail('Signed hash found, but required PGP public key not found.')
-
-    if args.pubkey and not(args.sig or
-                           args.signedmsg or
-                           args.signedhash):
-        fail('PGP public key found. Did you want to include a file signature, or signed message, or signed hash?')
+        fail('File size alone is not enough verification. File signature, signed hash, or explicit hash required')
 
     verify_source(args.target)
 
@@ -625,8 +702,8 @@ def verify_source(source):
             if source != args.target and target_host == host:
                 # this was a fail(), but too many people use one host
                 if args.debug:
-                    print(f'target: {args.target}')
-                warn(f'url is same host as target: {source}. Use --onehost to skip this warning.')
+                    print('target: {}'.format(args.target))
+                warn('url is same host as target: {}. Use --onehost to skip this warning.'.format(source))
                 # fail('url is same host as target: {}'.format(source))
 
 def verify_safeget_itself():
@@ -635,43 +712,10 @@ def verify_safeget_itself():
         database for original file size and hashes.
     '''
 
-    '''
-        Of course verifying a file using data from the file's host
-        exposes a single point of failure. If an attacker cracks
-        the host, they control both the file and the verification data.
-        But this check has proven very valuable anyway.
-
-        First, safeget makes it easy to do multiple checks automatically.
-        Not all are strong. But additional checks increase safety, and they
-        are cheap.
-
-        Second, there are many errors and attacks that can cause a file
-        mismatch, but do not require a web host crack. For example, some
-        browsers cache downloaded files. If a file changes during the
-        browser session, the browser reuses the old version. This function
-        catches those cases.
-    '''
-
-    ok, error_message = check_safeget_itself()
-    if not ok:
-        fail_message = 'Unable to verify safeget.'
-        if error_message is not None:
-            fail_message = f'\n{error_message}'
-        fail(fail_message)
-
-def check_safeget_itself(host=None, target=None):
-    '''
-        Check safeget itself by checking the online
-        database for original file size and hashes.
-
-        The parameters are only passed for testing.
-    '''
-
     def hashes_match(original, local, algo):
         ok = original == local
         if not ok:
-            debug(f'The {algo} hash does not match the original: {original}')
-            debug(f'                                      local: {local}')
+            debug('The {} hash does not match the original: {}'.format(algo, original))
         return ok
 
     def safeget_ok(result):
@@ -682,71 +726,39 @@ def check_safeget_itself(host=None, target=None):
         full_path = os.path.realpath(os.path.abspath(__file__))
         filename = os.path.basename(full_path)
 
-        original_safeget_bytes = result['quick-query']['message']['safeget-bytes']
+        original_safeget_bytes = result['quick-query']['safeget-bytes']
         if isinstance(original_safeget_bytes, str):
             original_safeget_bytes = int(original_safeget_bytes.replace(',', ''))
         local_safeget_bytes = os.path.getsize(full_path)
         ok = original_safeget_bytes == local_safeget_bytes
         if ok:
-            with open(full_path, 'rb') as input_file:
+            with open(filename, 'rb') as input_file:
                 lines = input_file.read()
 
-            original_safeget_sha512 = result['quick-query']['message']['safeget-sha512']
+            original_safeget_sha512 = result['quick-query']['safeget-sha512']
             local_safeget_sha512 = hashlib.sha512(lines).hexdigest()
             ok = hashes_match(original_safeget_sha512, local_safeget_sha512, 'SHA512')
             if ok:
-                original_safeget_sha256 = result['quick-query']['message']['safeget-sha256']
+                original_safeget_sha256 = result['quick-query']['safeget-sha256']
                 local_safeget_sha256 = hashlib.sha256(lines).hexdigest()
-                ok = hashes_match(original_safeget_sha256, local_safeget_sha256, 'SHA256')
+                ok = hashes_match(original_safeget_sha512, local_safeget_sha512, 'SHA256')
 
             # if neither hash is ok, then warn the user
             if not ok:
-                error_message = f'The hash of {filename} does not match the original.\n'
+                error_message = 'The hash of {} does not match the original.\n'
         else:
-            debug(f'safeget does not match: original: {original_safeget_bytes} local: {local_safeget_bytes}')
-            error_message = f'Your local copy of {filename} does not match the original.'
+            error_message = 'The file size is not correct. {} should have {} bytes.\n'.format(
+              filename, original_safeget_bytes)
 
         if error_message is not None:
-            error_message += ' IMPORTANT: You should download safeget again.'
+            error_message += ' You should download the file again.'
 
         return ok, error_message
 
-    HOST = 'https://denova.com'
-    API_URL = 'open_source/safeget/api/'
+    FULL_URL = 'https://denova.com/open_source/safeget/api/'
+    PARAMS = {'api_version': '1.0', 'actions': 'quick-query', 'target': args.target}
 
-    ok = True
-    error_message = None
-
-    if host is None:
-        host = HOST
-
-    if target is None:
-        target = args.target
-
-    full_api_url = os.path.join(host, API_URL)
-    page = None
-    if args and args.proxy:
-        i = args.proxy.find('://')
-        if i > 0:
-            algo = args.proxy[:i]
-            ip_port = args.proxy[i+len('://'):]
-            proxy = {algo: ip_port}
-        else:
-            fail('--proxy must be in the format: https://IP:PORT or http://IP:PORT')
-
-        proxy_handler = ProxyHandler(proxy)
-        opener = build_opener(proxy_handler, HTTPCookieProcessor(CookieJar()))
-    else:
-        opener = build_opener(HTTPCookieProcessor(CookieJar()))
-
-    HEADERS = {'User-Agent': 'DeNova Safeget 1.0'}
-    PARAMS = {'action': 'quick-query', 'api_version': '1.1', 'target': target}
-    encoded_params = urlencode(PARAMS).encode()
-
-    request = Request(full_api_url, encoded_params, HEADERS)
-
-    handle = opener.open(request)
-    page = handle.read().decode().strip()
+    page = get_file(FULL_URL, PARAMS).decode().strip()
 
     # strip out the html
     i = page.find('{')
@@ -757,23 +769,20 @@ def check_safeget_itself(host=None, target=None):
         page = page[:i+1]
 
     result = json.loads(page)
-    if isinstance(result, bytes):
-        result = result.decode()
     if 'quick-query' in result:
         if result['quick-query']['ok']:
             ok, error_message = safeget_ok(result)
+            if not ok:
+                debug('unable to verify safeget: {}'.format(error_message))
+                fail(error_message)
 
         elif 'message' in result['quick-query']:
-            ok = False
             error_message = result['quick-query']['message']
+            debug('unable to verify safeget: {}'.format(error_message))
+            fail(error_message)
     else:
-        ok = False
-        error_message = f'Unable to verify safeget: {result}'
-
-    if not ok:
-        debug(error_message)
-
-    return ok, error_message
+        debug('unable to verify safeget: {}'.format(result))
+        fail("Unable to verify safeget")
 
 def verify_size(localpath):
     ''' Verify file size. '''
@@ -791,7 +800,7 @@ def verify_size(localpath):
             if os.path.getsize(localpath) == args_size:
                 debug('verified file size')
             else:
-                fail(f'file size is not {args_size}')
+                fail('file size is not {size}'.format(size=args_size))
 
 def verify_signed_hashes(localpath):
     ''' Verify signed file hashes match localpath.
@@ -822,12 +831,12 @@ def verify_signed_hashes(localpath):
             algo, source = parse_hash(signed_hash_arg)
 
             if algo not in algos_available:
-                fail(f"{algo} not in available hash algorithms: {' '.join(algos_available)}")
+                fail('{} not in available hash algorithms: {}'.format(algo, ' '.join(algos_available)))
 
             # verify hashes are in a pgp signed message
 
             signed_data_files = verify_signed_messages(source)
-            debug(f'{len(signed_data_files)} signed data files')
+            debug('{} signed data files'.format(len(signed_data_files)))
 
             # just one has to match
             # hashes for other algorithms, file versions will not match
@@ -838,7 +847,7 @@ def verify_signed_hashes(localpath):
                                                      algo)
 
         if not matched:
-            fail(f'no matching signed hash found in {args.signedhash}')
+            fail('no matching signed hash found in {}'.format(args.signedhash))
 
 def verify_explicit_hashes(localpath):
     ''' Verify explicit file hashes match localpath.
@@ -854,7 +863,7 @@ def verify_explicit_hashes(localpath):
             algo, hash_or_url = parse_hash(hash_arg)
 
             if algo not in algos_available:
-                fail(f"{algo} not in available hash algorithms: {' '.join(algos_available)}")
+                fail('{} not in available hash algorithms: {}'.format(algo, ' '.join(algos_available)))
 
             matched = False
             if is_url(hash_or_url):
@@ -862,19 +871,19 @@ def verify_explicit_hashes(localpath):
                 verify_source(url)
                 hashpath = temppath()
                 download(url, hashpath)
-                debug(f'hash url {url} saved in {hashpath}')
+                debug('hash url {} saved in {}'.format(url, hashpath))
                 url_content = readfile(hashpath)
                 matched = search_for_hash(localpath, hashpath, algo, url_content)
 
             else:
                 expected_hash = hash_or_url
-                debug(f'command line arg algo: {algo}, expected_hash: {expected_hash}')
+                debug('command line arg algo: {}, expected_hash: {}'.format(algo, expected_hash))
                 if algo and expected_hash:
                     actual_hash = hash_data(algo, localpath)
                     matched = compare_hashes(algo, expected_hash, actual_hash)
 
             if not matched:
-                fail(f'{os.path.abspath(localpath)} expected hash did not match actual hash {algo}:{actual_hash}')
+                fail('{} expected hash did not match actual hash {}:{}'.format(os.path.abspath(localpath), algo, actual_hash))
 
 def hash_algorithms():
     ''' Return available hash algorithms.
@@ -906,7 +915,7 @@ def hash_algorithms():
     algos = set()
     for algo in hashlib.algorithms_available:
         algos.add(algo.lower())
-    debug(f'hashlib.algorithms_available: {algos}')
+    debug('hashlib.algorithms_available: {}'.format(algos))
 
     return algos
 
@@ -920,7 +929,7 @@ def hash_data(algo, localpath):
 
     BUFFER_SIZE = 100000
 
-    source = f'{algo}:{localpath}'
+    source = '{}:{}'.format(algo, localpath)
     if source not in localpath_hash_cache:
 
         h = hashlib.new(algo)
@@ -939,28 +948,28 @@ def hash_data(algo, localpath):
 
 def hash_failed(algo, expected_hash, actual_hash):
     debug("only one hash has to match; this one didn't")
-    debug(f'    expected {algo} hash: {expected_hash}')
-    debug(f'    actual {algo} hash: {actual_hash}')
+    debug('    expected {} hash: {}'.format(algo, expected_hash))
+    debug('    actual {} hash: {}'.format(algo, actual_hash))
 
 def search_for_hash(localpath, signed_hash_file, algo, url_content):
-    debug(f'search_for_hash {algo}:{signed_hash_file}')
+    debug('search_for_hash {}:{}'.format(algo, signed_hash_file))
 
     actual_hash = hash_data(algo, localpath)
     ok = actual_hash in url_content
     if ok:
-        debug(f'verfied {algo} hash from url')
+        debug('verfied {} hash from url'.format(algo))
 
     else:
-        hash_failed(algo, f'not found in {signed_hash_file}', actual_hash)
+        hash_failed(algo, 'not found in {}'.format(signed_hash_file), actual_hash)
 
     return ok
 
 def compare_hashes(algo, expected_hash, actual_hash):
-    debug(f'compare_hashes {algo}:{expected_hash}')
+    debug('compare_hashes {}:{}'.format(algo, expected_hash))
 
     ok = (expected_hash == actual_hash)
     if ok:
-        debug(f'verfied explicit {algo} hash')
+        debug('verfied explicit {} hash'.format(algo))
     else:
         hash_failed(algo, expected_hash, actual_hash)
     return ok
@@ -977,10 +986,10 @@ def get_pubkeys():
         PUBKEY_PATTERN = r'\-+\s*BEGIN PGP PUBLIC KEY BLOCK\s*\-+.*?\-+\s*END PGP PUBLIC KEY BLOCK\s*\-+\s*'
         pubkey_paths, online_pubkeys = save_patterns(PUBKEY_PATTERN, args.pubkey)
         for keypath in pubkey_paths:
-            debug(f'pubkey path: {keypath}')
+            debug('pubkey path: {}'.format(keypath))
             if clean_gpg_data(keypath):
                 run(gpg_path, '--import', keypath)
-            debug(f'imported pgp public key from: {keypath}')
+            debug('imported pgp public key from: {}'.format(keypath))
 
         if not args.debug:
             for path in online_pubkeys:
@@ -994,7 +1003,7 @@ def verify_signed_messages(source):
         content and the signature.
     '''
 
-    verbose(f'verify signed message at {source}')
+    verbose('verify signed message at {}'.format(source))
 
     # get pgp signed messages before pgp file signatures because
     # ideally the sigs are signed
@@ -1012,10 +1021,10 @@ def verify_signed_messages(source):
                     run(gpg_path, '--verify', stdin=infile)
                     verified_signedmsg_paths.append(signedmsg_path)
                 except Exception as ex:
-                    debug(f'could not verify signed message saved in {signedmsg_path}')
+                    debug('could not verify signed message saved in {}'.format(signedmsg_path))
                     debug(ex)
                 else:
-                    verbose(f'verified pgp signed message: {signedmsg_path}')
+                    verbose('verified pgp signed message: {}'.format(signedmsg_path))
 
     if not args.debug:
         for path in online_signed_msgs:
@@ -1024,17 +1033,17 @@ def verify_signed_messages(source):
     return verified_signedmsg_paths
 
 def verify_signatures(local_target):
-    ''' Get and verify gpg detached signatures for a file.
+    ''' Get and verify gpg detatched signatures for a file.
 
-        A pgp detached signature begins with "BEGIN PGP SIGNATURE"
+        A pgp detatched signature begins with "BEGIN PGP SIGNATURE"
         and ends with "END PGP SIGNATURE". It just contains the
         signature. The signed data is in a separate file.
     '''
 
     if args.sig:
-        verbose('verify pgp detached signature')
+        verbose('verify pgp detatched signature')
 
-        # get pgp detached signatures for a file
+        # get pgp detatched signatures for a file
         SIG_PATTERN = r'\-+\s*BEGIN PGP SIGNATURE\s*\-+.*?\-+\s*END PGP SIGNATURE\s*\-+\s*'
         sig_paths, online_sigs = save_patterns(SIG_PATTERN, args.sig)
         for sigpath in sig_paths:
@@ -1042,10 +1051,10 @@ def verify_signatures(local_target):
                 try:
                     run(gpg_path, '--verify', sigpath, local_target)
                 except Exception as ex:
-                    debug(f'could not verify pgp detached signature saved in {sigpath}')
+                    debug('could not verify pgp detached signature saved in {}'.format(sigpath))
                     debug(ex)
                 else:
-                    verbose(f'verified pgp detached signature: {args.sig}')
+                    verbose('verified pgp detached signature: {}'.format(args.sig))
 
         if not args.debug:
             for path in online_sigs:
@@ -1062,7 +1071,7 @@ def parse_hash(text):
     hash_or_url = hash_or_url.lower()
     # if a url with no algo was specified, the second component would start with //
     if (not algo) or (not hash_or_url) or (hash_or_url.startswith('//')):
-        fail(f'in hash expected "ALGORITHM:..." e.g. "SHA512:D6E8..." or "SHA256:https://...", got {text}')
+        fail('in hash expected "ALGORITHM:..." e.g. "SHA512:D6E8..." or "SHA256:https://...", got {}'.format(text))
 
     # strip embedded spaces in a hash
     hash_or_url = re.sub(' ', '', hash_or_url)
@@ -1075,7 +1084,7 @@ def extract_patterns(pattern, localpath):
     paths = []
     content = readfile(localpath)
 
-    debug(f'extracting {pattern} from {localpath}')
+    debug('extracting {} from {}'.format(pattern, localpath))
 
     for text in re.findall(pattern, content, flags=re.DOTALL):
         path = temppath()
@@ -1105,17 +1114,17 @@ def save_patterns(pattern, sources):
             verify_source(url)
             path = temppath()
             download(url, path)
-            debug(f'url {url} saved in {path}')
+            debug('url {} saved in {}'.format(url, path))
             online_paths.append(path)
 
         else:
             path = source
             if not os.path.exists(path):
-                fail(f'file not found: {path}')
+                fail('file not found: {}'.format(path))
 
         pattern_paths = extract_patterns(pattern, path)
         if not pattern_paths:
-            fail(f'no "{pattern}" patterns found: {path}')
+            fail('no "{}" patterns found: {}'.format(pattern, path))
         paths.extend(pattern_paths)
 
     return paths, online_paths
@@ -1151,17 +1160,13 @@ def clean_gpg_data(path):
         text = text.replace('^/s*', '')
         text = text.replace('\\n', '\n')
         text = text.replace('\\r', '')
-        text = text.replace('<p>', '\n')
-        text = text.replace('</p>', '\n')
-        text = text.replace('<br>', '\n')
-        text = text.replace('<br/>', '\n')
 
         assert '\\n' not in text
         with open(path, 'w') as outfile:
             outfile.write(text)
 
     else:
-        debug(f'gpg data file too short: {path}')
+        debug('gpg data file too short: {}'.format(path))
 
     return ok
 
@@ -1176,10 +1181,10 @@ def download_tempfile(url):
 
         Returns temp file path. '''
 
-    debug(f'download {url} to temp file')
+    debug('download {} to temp file'.format(url))
     data = download_data(url)
     path = temppath()
-    debug(f'save url data to {path}')
+    debug('save url data to {}'.format(path))
     with open(path, 'wb') as datafile:
         datafile.write(data)
     return path
@@ -1191,14 +1196,14 @@ def ok_to_write(path):
     '''
 
     if os.path.exists(path) and os.path.getsize(path) and not testing:
-        verbose(f'{os.path.abspath(path)} already exists')
-        prompt = f'\nOk to replace {os.path.abspath(path)}? '
+        verbose('{} already exists'.format(os.path.abspath(path)))
+        prompt = 'Ok to replace {}? '.format(os.path.abspath(path))
         answer = input(prompt)
         answer = answer.lower()
-        debug(f'answered: {answer}')
+        debug('answered: {}'.format(answer))
         ok = answer in ['y', 'yes']
         if not ok:
-            fail(f'did not replace {os.path.abspath(path)}')
+            fail('did not replace {}'.format(os.path.abspath(path)))
     else:
         ok = True
 
@@ -1226,12 +1231,12 @@ def persist(func, *args, **kwargs):
 
         except Exception as e:
             report(e)
-            print(f'{e}; Retrying')
+            print('{}; Retrying'.format(e))
             retries = retries + 1
 
         else:
             if retries:
-                debug(f'Succeeded after {retries} retries')
+                debug('Succeeded after {} retries'.format(retries))
             done = True
 
     return result
@@ -1239,7 +1244,7 @@ def persist(func, *args, **kwargs):
 def report(msg):
     ''' Report if censorship detected. '''
 
-    print(msg)
+    pass
 
 def is_url(s):
     ''' Returns True if url, else returns False. '''
@@ -1280,7 +1285,7 @@ def test():
 
         global failed
 
-        notice(f'Test {description}\n\t')
+        notice('Test {}\n\t'.format(description))
 
         try:
             # use test command line args
@@ -1304,7 +1309,7 @@ def test():
 
         global failed
 
-        notice(f'Test {description}\n\t')
+        notice('Test {}\n\t'.format(description))
 
         try:
             # use test command line args
@@ -1322,10 +1327,10 @@ def test():
         else:
             print('\tPassed')
 
-    BITCOIN_VERSION = '0.20.1'
+    BITCOIN_VERSION = '0.17.1'
     # file to verify
     # url created below
-    FILENAME = f'bitcoin-{BITCOIN_VERSION}-x86_64-linux-gnu.tar.gz'
+    FILENAME = 'bitcoin-{version}-x86_64-linux-gnu.tar.gz'.format(version=BITCOIN_VERSION)
 
     # bitcoin-core public key
     BITCOIN_PUBKEY_URL = 'https://bitcoincore.org/keys/laanwj-releases.asc'
@@ -1371,10 +1376,12 @@ def test():
         os.mkdir(TMP_DIR)
     os.chdir(TMP_DIR)
     if debug_test or verbose_test:
-        print(f'test dir is {TMP_DIR}')
+        print('test dir is {}'.format(TMP_DIR))
 
     # if local copies of test files are already in TMP_DIR, use them
-    if os.path.exists(LOCAL_TARGET) and os.path.exists(LOCAL_PUBKEY) and os.path.exists(LOCAL_SIGNED_HASHES_SOURCE):
+    if (os.path.exists(LOCAL_TARGET) and
+        os.path.exists(LOCAL_PUBKEY) and
+        os.path.exists(LOCAL_SIGNED_HASHES_SOURCE)):
 
         test_success('local target',
 
