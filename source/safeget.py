@@ -14,7 +14,7 @@
     to verify safeget itself.
 
     Copyright 2019-2020 DeNova
-    Last modified: 2020-10-20
+    Last modified: 2020-11-01
 '''
 
 import argparse
@@ -337,7 +337,7 @@ def install(program, windows_url=None, osx_url=None, linux_package=None, is_inst
     def already_installed():
         verbose(f'{program} already installed')
 
-    def install_done():
+    def install_done(program, program_path):
         debug(f'installed {program} to {program_path}')
 
     def windows_install(program, windows_url):
@@ -387,7 +387,7 @@ def install(program, windows_url=None, osx_url=None, linux_package=None, is_inst
             if is_installer:
                 run(program_path)
 
-            install_done()
+            install_done(program, program_path)
 
         return program
 
@@ -403,7 +403,7 @@ def install(program, windows_url=None, osx_url=None, linux_package=None, is_inst
             verbose(f'install linux package {linux_package}')
             # !! this assumes debian or derivative; what about redhat?
             run('apt-get', 'install', linux_package)
-            install_done()
+            install_done(program, linux_package)
 
         return program
 
