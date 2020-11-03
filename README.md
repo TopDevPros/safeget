@@ -11,9 +11,14 @@ all the parameters usually passed on the command line, contact
 support at denova.com. It's free. Your users then run that simple small
 program to download and fully verify your app, without the hassles.
 
+Safeget requires python3. If you see a "SyntaxError: invalid syntax",
+then you probably are tryinng to run safeget with python2.
+
 Get full docs at: https://denova.com/open_source/safeget/
 
-DeNova support gpg key:
+
+DeNova support gpg key
+----------------------
 
 ```
 
