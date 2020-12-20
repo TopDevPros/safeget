@@ -8,13 +8,13 @@
     Your users then run that simple small program to download
     and fully verify your app, without the hassles.
 
-    Learn more at https://denova.com/open_source/safeget/
+    Learn more at https://denova.com/open/safeget/
 
     This is intentionally a single file to make it easier
     to verify safeget itself.
 
     Copyright 2019-2020 DeNova
-    Last modified: 2020-11-01
+    Last modified: 2020-12-20
 '''
 
 import argparse
@@ -39,6 +39,8 @@ DEFAULT_TRIES = 20 # from wget default
 STD_TEXT_STREAMS = True
 ALL_TESTS = False
 
+SAFEGET_VERSION = '1.4.5'
+
 args = None
 
 wget_path = 'wget'
@@ -58,47 +60,55 @@ def main():
         Optionally, install file or run command with file.
     '''
 
+    parse_args()
+    if args.test:
+        test()
+
+    if args.version:
+        show_version()
+
+    else:
+        start_safeget()
+
+def start_safeget():
+    ''' Start safeget itself. '''
+
     try:
-        if '--test' in sys.argv:
-            test()
+        verify_args()
+
+        if 'app' in args:
+            notice(f'Safegetting {args.app}\n')
+
+        if 'noselfcheck' in args and not args.noselfcheck:
+            notice('Checking... ')
+            verify_safeget_itself()
+
+        if not (installed('wget') and installed('gpg')): # and installed('openssl')
+            install_dependencies()
+
+        if is_url(args.target):
+
+            url = args.target
+            local_target = os.path.basename(url)
+            notice('Downloading... ')
+            download(url, local_target)
 
         else:
-            parse_args()
-            verify_args()
+            local_target = args.target
+            if not os.path.exists(local_target):
+                fail(f'file does not exist: {os.path.abspath(local_target)}')
 
-            if 'app' in args:
-                notice(f'Safegetting {args.app}\n')
+        verify_file(local_target)
 
-            if 'noselfcheck' in args and not args.noselfcheck:
-                notice('Checking... ')
-                verify_safeget_itself()
+        if args.run:
+            notice('Running... ')
+            run(args.target, interactive=True)
+            print('Finished.')
 
-            if not (installed('wget') and installed('gpg')): # and installed('openssl')
-                install_dependencies()
+        if args.after:
+            run_command_after(args.after)
 
-            if is_url(args.target):
-
-                url = args.target
-                local_target = os.path.basename(url)
-                notice('Downloading... ')
-                download(url, local_target)
-
-            else:
-                local_target = args.target
-                if not os.path.exists(local_target):
-                    fail(f'file does not exist: {os.path.abspath(local_target)}')
-
-            verify_file(local_target)
-
-            if args.run:
-                notice('Running... ')
-                run(args.target, interactive=True)
-                print('Finished.')
-
-            if args.after:
-                run_command_after(args.after)
-
-            more()
+        more()
 
     except SafegetException as sgex:
         if args.debug or testing:
@@ -118,12 +128,21 @@ def main():
         else:
             sys.exit(2)
 
+def show_version():
+    ''' Show the app's name and version if known
+        or safeget's version otherwise. '''
+
+    if 'app' in args:
+        notice(f'{args.app}\n')
+    else:
+        notice(f'Safeget {SAFEGET_VERSION} (Linux)\n')
+
 def more():
     ''' Let them know where to get more safeget commands. '''
 
     if not testing:
         print('\n')
-        print('Find more safegets at https://denova.com/open_source/safeget/custom/')
+        print('Find more safegets at https://denova.com/open/safeget/custom/')
 
 def notice(msg):
     ''' Print short notice message without newline. '''
@@ -509,19 +528,19 @@ def parse_args():
         Return parsed args.
 
         Do NOT change the "def parse_args():" line above
-        without also changing customize.py in the safeget tools dir.
+        without also changing create_custom_safeget.py in the safeget tools dir.
     '''
 
     global args
 
     parser = argparse.ArgumentParser(description='Get and verify a file.')
 
-    parser.add_argument('target', help='url of file to download, or file path')
+    parser.add_argument('target', nargs='?', help='url of file to download, or file path')
 
     parser.add_argument('--size', help='file size in bytes') # not an int to allow commas
     parser.add_argument('--hash', nargs='*',
                         help='file hash in form ALGO:HASH, ALGO:URL, or ALGO:FILE. ' +
-                        'ALGO is a hash algorithm such as SHA256. HASH is hex literal. ' +
+                        'ALGO is a hash algorithm such as SHA256. HASH is a hex literal. ' +
                         'If URL or FILE, the correct hash must appear in the url or file contents')
     parser.add_argument('--pubkey', nargs='*',
                         help='url or file of pgp signing key')
@@ -538,11 +557,20 @@ def parse_args():
     parser.add_argument('--tries', help='times to retry', type=int, default=DEFAULT_TRIES)
     parser.add_argument('--verbose', help='show more details', action='store_true')
     parser.add_argument('--debug', help='show debug details', action='store_true')
-    parser.add_argument('--onehost', help='skip warning when sources are not separtate hosts', action='store_true')
+    parser.add_argument('--onehost', help='skip warning when sources are not separate hosts', action='store_true')
+    parser.add_argument('--version', help='show the product and version number', action='store_true')
     parser.add_argument('--test', help='test this command', action='store_true')
 
     args = parser.parse_args()
     debug(f'args from argsparse: {vars(args)}')
+
+    if args.version:
+        pass
+    elif 'test' in args and args.test:
+        pass
+    elif args.target is None:
+        print('Safeget requires a target. Run "safeget --help" for usage.')
+        sys.exit(-1)
 
     return args
 
@@ -707,12 +735,12 @@ def check_safeget_itself(host=None, target=None):
             error_message = f'Your local copy of {filename} does not match the original.'
 
         if error_message is not None:
-            error_message += ' IMPORTANT: You should download safeget again.'
+            error_message += ' IMPORTANT: You should download the safeget installer again.'
 
         return ok, error_message
 
     HOST = 'https://denova.com'
-    API_URL = 'open_source/safeget/api/'
+    API_URL = 'open/safeget/api/'
 
     ok = True
     error_message = None
@@ -1258,6 +1286,25 @@ def parse_host(url):
     return host
 
 def test():
+    ''' Test safeget by getting bitcoin core. '''
+
+    try:
+        test_getting_bitcoin_core()
+
+    except SafegetException:
+        # show the traceback
+        raise
+
+    except KeyboardInterrupt:
+        print('stopped by user')
+        if args.debug:
+            # show the traceback
+            # in case the Ctrl-C was to see where the program was stuck
+            raise
+        else:
+            sys.exit(2)
+
+def test_getting_bitcoin_core():
     ''' Use bitcoin core as a test case. ISOs take too long to download.
 
         A fake safeget could lie. So users need to check this safeget

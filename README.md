@@ -2,8 +2,11 @@
 DeNova Safeget
 --------------
 
-Downloads and verifies files. It does more security checks for you
-than most security experts.
+Download verified files, not malware.
+With one command Safeget downloads <em>and</em>
+does the complex security checks for you that most people skip.
+Verifies pgp/gpg sigs, hashes, and more.
+Resistant to quantum attacks.
 
 
 If you would like a simple custom safeget for your app which embeds
@@ -14,7 +17,7 @@ program to download and fully verify your app, without the hassles.
 Safeget requires python3. If you see a "SyntaxError: invalid syntax",
 then you probably are tryinng to run safeget with python2.
 
-Get full docs at: https://denova.com/open_source/safeget/
+Get full docs at: https://denova.com/open/safeget/
 
 
 DeNova support gpg key

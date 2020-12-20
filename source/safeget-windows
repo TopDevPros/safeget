@@ -9,13 +9,13 @@
     use that small program to download and fully verify
     your app without the hassles.
 
-    Learn more at https://denova.com/open_source/safeget/
+    Learn more at https://denova.com/open/safeget/
 
     This is intentionally a single file to make it easier
     to verify safeget itself.
 
     Copyright 2019-2020 DeNova
-    Last modified: 2020-10-04
+    Last modified: 2020-12-18
 '''
 
 import argparse
@@ -122,7 +122,7 @@ def more():
 
     if not testing:
         print('\n')
-        print('Find more safegets at https://denova.com/open_source/safeget/custom/')
+        print('Find more safegets at https://denova.com/open/safeget/custom/')
 
 def notice(msg):
     ''' Print short notice message without newline. '''
@@ -596,7 +596,7 @@ def parse_args():
         Return parsed args.
 
         Do NOT change the "def parse_args():" line above
-        without also changing denova/src/open_source/safeget/customize.py
+        without also changing denova/src/open/safeget/create_custom_safeget.py
     '''
 
     global args
@@ -755,7 +755,7 @@ def verify_safeget_itself():
 
         return ok, error_message
 
-    FULL_URL = 'https://denova.com/open_source/safeget/api/'
+    FULL_URL = 'https://denova.com/open/safeget/api/'
     PARAMS = {'api_version': '1.0', 'actions': 'quick-query', 'target': args.target}
 
     page = get_file(FULL_URL, PARAMS).decode().strip()
