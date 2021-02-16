@@ -3,10 +3,12 @@ DeNova Safeget
 --------------
 
 Download verified files, not malware.
+This is the most effective way to get your users to verify files.
 With one command Safeget downloads <em>and</em>
-does the complex security checks for you that most people skip.
+does the complex security checks that most people skip.
 Verifies pgp/gpg sigs, hashes, and more.
-Resistant to quantum attacks.
+Give them one command that downloads <em>and</em> verifies.
+They'll verify every time.
 
 
 If you would like a simple custom safeget for your app which embeds
