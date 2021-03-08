@@ -3,7 +3,7 @@
     Tests safeget.
 
     Copyright 2019-2021 DeNova
-    Last modified: 2021-02-16
+    Last modified: 2021-03-07
 
     Test safeget by running the app.
 
@@ -28,7 +28,7 @@ from unittest import TestCase
 try:
     from denova.os.command import run, run_verbose
     from denova.os.fs import cd
-    from denova.python.log import get_log
+    from denova.python.log import Log
 except ImportError:
     sys.exit('You need the denova package from PyPI to run the tests')
 
@@ -41,39 +41,59 @@ TMP_DIR = os.path.join(gettempdir(), 'safeget.test')
 
 # this group of constants must be updated whenever the version changes
 BITCOIN_VERSION = '0.21.0'
-FILESIZE = 33433481
+BITCOIN_FILESIZE = 33433481
 # explicit hashes
 # hash can be a hex string or url, with an algo prefix
-HASH1 = 'SHA256:da7766775e3f9c98d7a9145429f2be8297c2672fe5b118fd3dc2411fb48e0032'
-HASH2 = 'SHA512:6969cb86bf932c402b5a1cb4ee22c05a8c2cc4c0842b70cbf34a6c2200703731ad2dcdad5b390eee0a8e4dea5340ef6873232be6e9ec209373524369038a92e5'
-HASH3 = 'MD5:be2caf516b721248af85e80882edc26b'
+BITCOIN_HASH1 = 'SHA256:da7766775e3f9c98d7a9145429f2be8297c2672fe5b118fd3dc2411fb48e0032'
+BITCOIN_HASH2 = 'SHA512:6969cb86bf932c402b5a1cb4ee22c05a8c2cc4c0842b70cbf34a6c2200703731ad2dcdad5b390eee0a8e4dea5340ef6873232be6e9ec209373524369038a92e5'
+BITCOIN_HASH3 = 'MD5:be2caf516b721248af85e80882edc26b'
 
 # file to verify
 # url created below
-FILENAME = f'bitcoin-{BITCOIN_VERSION}-x86_64-linux-gnu.tar.gz'
+BITCOIN_FILENAME = f'bitcoin-{BITCOIN_VERSION}-x86_64-linux-gnu.tar.gz'
 
 # bitcoin-core public key
 BITCOIN_PUBKEY_URL = 'https://bitcoincore.org/keys/laanwj-releases.asc'
 
-# url/file with pgp pubkeys
-LOCAL_PUBKEY = 'laanwj-releases.asc'
 # url/file to verify
-LOCAL_TARGET = os.path.join(TMP_DIR, FILENAME)
+BITCOIN_LOCAL_TARGET = os.path.join(TMP_DIR, BITCOIN_FILENAME)
 # url/file with signed pgp messages containing hashes
-LOCAL_SIGNED_HASHES_SOURCE = 'verifying_bitcoin_core'
-LOCAL_SIGNED_HASH = 'SHA256:' + LOCAL_SIGNED_HASHES_SOURCE
+BITCOIN_LOCAL_SIGNED_HASHES_SOURCE = 'verifying_bitcoin_core'
+BITCOIN_LOCAL_SIGNED_HASH = 'SHA256:' + BITCOIN_LOCAL_SIGNED_HASHES_SOURCE
 
 # url/file with pgp pubkeys
-ONLINE_PUBKEY = 'https://raw.githubusercontent.com/bitcoin-core/bitcoincore.org/master/keys/laanwj-releases.asc'
+BITCOIN_ONLINE_PUBKEY = 'https://raw.githubusercontent.com/bitcoin-core/bitcoincore.org/master/keys/laanwj-releases.asc'
 # url/file with signed pgp messages containing hashes
-ONLINE_SIGNED_HASHES_SOURCE = 'https://www.reddit.com/r/Bitcoin/wiki/verifying_bitcoin_core'
-ONLINE_SIGNED_HASH = 'SHA256:' + ONLINE_SIGNED_HASHES_SOURCE
+BITCOIN_ONLINE_SIGNED_HASHES_SOURCE = 'https://denova.com/open/safeget/hashes/bitcoin-core-0.21.0/SHA256SUMS.asc'
+BITCOIN_ONLINE_SIGNED_HASH = 'SHA256:' + BITCOIN_ONLINE_SIGNED_HASHES_SOURCE
 # url/file to verify
-ONLINE_TEMPLATE = 'https://bitcoin.org/bin/bitcoin-core-{version}/{filename}'
-ONLINE_TARGET = ONLINE_TEMPLATE.format(version=BITCOIN_VERSION, filename=FILENAME)
+BITCOIN_ONLINE_TEMPLATE = 'https://bitcoin.org/bin/bitcoin-core-{version}/{filename}'
+BITCOIN_ONLINE_TARGET = BITCOIN_ONLINE_TEMPLATE.format(version=BITCOIN_VERSION, filename=BITCOIN_FILENAME)
+
+# file to verify
+# url created below
+GPA_FILENAME = f'gpa-0.10.0.tar.bz2'
+
+GPA_FILESIZE = 782455
+# explicit hashes
+# hash can be a hex string or url, with an algo prefix
+GPA_HASH1 = 'SHA256:95dbabe75fa5c8dc47e3acf2df7a51cee096051e5a842b4c9b6d61e40a6177b1'
+GPA_HASH2 = 'SHA512:87004fb0806e76012bc194f95afe9ef6044aec890b26e845f45c314e1bd8864f056ba5e32f9ef2e15b24b50840235e6e548a5e3006b255b4f1c20e0fd7710a3b'
+GPA_HASH3 = 'MD5:d0ee0086aea0ad1f61f81dae9a71c253'
+
+# url/file to verify
+GPA_LOCAL_TARGET = os.path.join(TMP_DIR, GPA_FILENAME)
+
+# url/file with pgp pubkeys
+GPA_ONLINE_PUBKEY = 'https://www.gnupg.org/%28en%29/signature_key.html'
+# url/file with detached signature
+GPA_ONLINE_SIGNATURE = 'https://www.gnupg.org/ftp/gcrypt/gpa/gpa-0.10.0.tar.bz2.sig'
+# url/file to verify
+GPA_ONLINE_TARGET = f'https://www.gnupg.org/ftp/gcrypt/gpa/{GPA_FILENAME}'
 
 
-log = get_log()
+log = Log()
+
 
 class TestSafeget(TestCase):
 
@@ -87,10 +107,9 @@ class TestSafeget(TestCase):
                 os.mkdir(TMP_DIR)
         else:
             os.mkdir(TMP_DIR)
-        print(f'test dir is {TMP_DIR}')
 
         # if the local copy exists, then don't keep downloading it
-        if os.path.exists(LOCAL_TARGET) and os.path.getsize(LOCAL_TARGET) == FILESIZE:
+        if os.path.exists(BITCOIN_LOCAL_TARGET) and os.path.getsize(BITCOIN_LOCAL_TARGET) == BITCOIN_FILESIZE:
             pass
         else:
             # get a local copy so we can run all the tests
@@ -98,128 +117,128 @@ class TestSafeget(TestCase):
 
                                'online target',
 
-                                ONLINE_TARGET,
+                                BITCOIN_ONLINE_TARGET,
 
                                 '--size',
-                                FILESIZE,
+                                BITCOIN_FILESIZE,
 
                                 '--pubkey',
-                                ONLINE_PUBKEY,
+                                BITCOIN_ONLINE_PUBKEY,
 
                                 '--signedhash',
-                                ONLINE_SIGNED_HASH)
+                                BITCOIN_ONLINE_SIGNED_HASH)
 
     def test_app(self):
         ''' Test the app locally. '''
 
         self.verify_success('local target',
 
-                             LOCAL_TARGET,
+                             BITCOIN_LOCAL_TARGET,
 
                              '--size',
-                             FILESIZE,
+                             BITCOIN_FILESIZE,
 
                             '--pubkey',
-                            ONLINE_PUBKEY,
+                            BITCOIN_ONLINE_PUBKEY,
 
                             '--signedhash',
-                            ONLINE_SIGNED_HASH)
+                            BITCOIN_ONLINE_SIGNED_HASH)
 
     def test_explicit_hashes(self):
         ''' Test the explicit hashes. '''
 
         self.verify_success('explicit hashes',
 
-                     # earlier tests should have made LOCAL_TARGET available
-                     LOCAL_TARGET,
+                     # earlier tests should have made BITCOIN_LOCAL_TARGET available
+                     BITCOIN_LOCAL_TARGET,
 
                      '--hash',
-                     HASH1,
-                     HASH2,
-                     HASH3)
+                     BITCOIN_HASH1,
+                     BITCOIN_HASH2,
+                     BITCOIN_HASH3)
 
     def test_not_enough_args(self):
         ''' Test when there aren't enough args. '''
 
         self.verify_failure('not enough args',
 
-                       ONLINE_SIGNED_HASH,
+                       BITCOIN_ONLINE_SIGNED_HASH,
 
                        '--pubkey',
-                       ONLINE_PUBKEY)
+                       BITCOIN_ONLINE_PUBKEY)
 
     def test_target_missing(self):
         ''' Test when the target arg is missing. '''
 
         self.verify_failure('target missing',
 
-                     'expected_to_fail_' + ONLINE_TARGET,
+                     'expected_to_fail_' + BITCOIN_ONLINE_TARGET,
 
                      '--hash',
-                     HASH1,
-                     HASH2,
+                     BITCOIN_HASH1,
+                     BITCOIN_HASH2,
 
                      '--pubkey',
-                     ONLINE_PUBKEY,
+                     BITCOIN_ONLINE_PUBKEY,
 
                      '--signedhash',
-                     ONLINE_SIGNED_HASH)
+                     BITCOIN_ONLINE_SIGNED_HASH)
 
     def test_wrong_hash(self):
         ''' Test when the hash is wrong. '''
 
         self.verify_failure('wrong hash',
 
-                     LOCAL_TARGET,
+                     BITCOIN_LOCAL_TARGET,
 
                      '--hash',
-                     'expected_to_fail_' + HASH1,
-                     HASH2,
+                     'expected_to_fail_' + BITCOIN_HASH1,
+                     BITCOIN_HASH2,
 
                      '--pubkey',
-                     ONLINE_PUBKEY,
+                     BITCOIN_ONLINE_PUBKEY,
 
                      '--signedhash',
-                     ONLINE_SIGNED_HASH)
+                     BITCOIN_ONLINE_SIGNED_HASH)
 
     def test_not_enough_args(self):
         ''' Test when the pubkey is wrong. '''
 
         self.verify_failure('wrong pubkey',
 
-                     LOCAL_TARGET,
+                     BITCOIN_LOCAL_TARGET,
 
                      '--hash',
-                     HASH1,
-                     HASH2,
+                     BITCOIN_HASH1,
+                     BITCOIN_HASH2,
 
                      '--pubkey',
-                     'expected_to_fail_' + ONLINE_PUBKEY,
+                     'expected_to_fail_' + BITCOIN_ONLINE_PUBKEY,
 
                      '--signedhash',
-                     ONLINE_SIGNED_HASH)
+                     BITCOIN_ONLINE_SIGNED_HASH)
 
     def test_wrong_signed_has(self):
         ''' Test when there aren't enough args. '''
 
         self.verify_failure('wrong signed hash',
 
-                     LOCAL_TARGET,
+                     BITCOIN_LOCAL_TARGET,
 
                      '--hash',
-                     HASH1,
-                     HASH2,
+                     BITCOIN_HASH1,
+                     BITCOIN_HASH2,
 
                      '--pubkey',
-                     ONLINE_PUBKEY,
+                     BITCOIN_ONLINE_PUBKEY,
 
                      '--signedhash',
-                     'expected_to_fail_' + LOCAL_SIGNED_HASHES_SOURCE)
+                     'expected_to_fail_' + BITCOIN_LOCAL_SIGNED_HASHES_SOURCE)
 
     def test_version(self):
         ''' Test that the version show up. '''
 
-        args = [SAFEGET_APP] + ['--version']
+        args = ['python3', SAFEGET_APP] + ['--version']
 
         results = run(*args)
         self.assertEqual(results.returncode, 0)
@@ -236,7 +255,7 @@ class TestSafeget(TestCase):
         with cd(TMP_DIR):
 
             try:
-                args = [SAFEGET_APP] + list(test_args) + ['--verbose']
+                args = ['python3', SAFEGET_APP] + list(test_args) + ['--verbose']
                 log(f'{description} args: {args}')
 
                 run_verbose(*args)
@@ -260,7 +279,7 @@ class TestSafeget(TestCase):
         with cd(TMP_DIR):
 
             try:
-                args = [SAFEGET_APP] + list(test_args) + ['--verbose']
+                args = ['python3', SAFEGET_APP] + list(test_args) + ['--verbose']
                 log(f'{description} args: {args}')
 
                 run(*args)

@@ -14,7 +14,7 @@
     to verify safeget itself.
 
     Copyright 2019-2021 DeNova
-    Last modified: 2021-02-16
+    Last modified: 2021-03-08
 '''
 
 import argparse
@@ -29,38 +29,35 @@ import sys
 
 from glob import glob
 from http.cookiejar import CookieJar
-from tempfile import gettempdir, mkdtemp, mkstemp
+from random import choice
+from shutil import rmtree
+from tempfile import mkdtemp
 from traceback import format_exc
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode, urlparse
 from urllib.request import build_opener, urlopen, HTTPCookieProcessor, ProxyHandler, Request
 
 
-CURRENT_VERSION = '1.4.7'
+CURRENT_VERSION = '1.4.8'
 COPYRIGHT = 'Copyright 2019-2021 DeNova'
 LICENSE = 'GPLv3'
 
 DEFAULT_TRIES = 20 # wget default
 # use standard text streams for stdin, stdout and stderr
 STD_TEXT_STREAMS = True
+TMP_DIR = mkdtemp(prefix='safeget.')
 
 args = None
 
 gpg_path = 'gpg'
+
+system = platform.system()
 
 target_host = None
 localpath_hash_cache = {}
 
 testing = False
 failed = False
-
-system = platform.system()
-if system == 'Windows':
-    testing = True
-    tmp_filenumber = 0
-    TMP_DIR = 'temp dir' # DEBUG
-else:
-    TMP_DIR = mkdtemp(prefix='safeget.')
 
 
 class SafegetException(Exception):
@@ -88,19 +85,21 @@ def start_safeget():
         if 'app' in args:
             notice(f'Safely get {args.app}\n')
 
+        install_dependencies()
+
         if 'noselfcheck' in args and not args.noselfcheck:
             notice('Check... ')
             verify_safeget_itself()
-
-        if not (installed('gpg')): # and installed('openssl')
-            install_dependencies()
 
         if is_url(args.target):
 
             url = args.target
             local_target = os.path.basename(url)
             notice('Download... ')
-            download(url, local_target)
+            if testing and os.path.exists(local_target):
+                pass
+            else:
+                download(url, local_target)
 
         else:
             local_target = args.target
@@ -117,6 +116,9 @@ def start_safeget():
 
         if args.after:
             run_command_after(args.after)
+
+        if not testing:
+            delete_temp_dir()
 
         more()
 
@@ -152,6 +154,7 @@ def more():
 
     print('\n')
     print('Find more safegets at https://denova.com/open/safeget/custom/')
+    print('\n')
 
 def notice(msg):
     ''' Print short notice message without newline. '''
@@ -196,7 +199,7 @@ def which(program):
 
         return path
 
-    if system == 'Windows':
+    if running_on_windows():
         command_args = ['where', program]
 
     else:
@@ -212,8 +215,9 @@ def which(program):
     try:
         path = run(*command_args)
     except subprocess.CalledProcessError:
+
         # Windows "where" doesn't look everywhere for an app
-        if system == 'Windows':
+        if running_on_windows():
             path = search_path(program)
         else:
             path = None
@@ -241,54 +245,39 @@ def safeget_run(*command_args, **kwargs):
         fail(f'File not found: {command_args[0]}')
 
 def install_dependencies():
-    ''' Install dependencies.
+    ''' Install dependencies if any are needed. '''
 
-        Call this as soon as we know we need a dependency.
-    '''
+    global gpg_path
 
-    notice('Install dependencies... ')
-    # we may not need openssl, and it is already installed on osx and linux
-    # install_openssl()
-    install_gpg()
+    try:
+        # see if we can find the gpg path
+        gpg_path = which('gpg')
+        is_installed = gpg_path is not None
+        if not is_installed and running_on_windows():
+            # "where" does not look in the following dir so lets just see if it is already installed
+            gpg_path = 'C:\\Program Files (x86)\\GnuPG\\bin\\gpg.exe'
+            is_installed = os.path.exists(gpg_path)
+    except Exception:
+        is_installed = False
 
-def install_openssl():
-    '''
-        Checks domains, connections and hashes.
-        Already installed on most Linux distros and Mac.
-    '''
-
-    # Binaries - OpenSSLWiki
-    #     https://wiki.openssl.org/index.php/Binaries
-    open_ssl_path = install('openssl',
-                            # we might be able to use the 3MB version: https://slproweb.com/download/Win32OpenSSL_Light-1_1_0g.exe
-                            windows_url = 'https://slproweb.com/download/Win32OpenSSL-1_1_0g.exe',
-                            is_installer=True)
-    debug(f'openssl path: {open_ssl_path}')
+    if not is_installed:
+        notice('Install dependencies... ')
+        install_gpg()
 
 def install_gpg():
     '''
         Verifies signatures.
-        Already installed on most Linux distros.
+        Already installed on most Linux and Mac distros.
     '''
 
     global gpg_path
 
-    if system == 'Windows':
-        # "where" does not look in the following dir so lets just see if it is already installed
-        gpg_path = 'C:\\Program Files (x86)\\GnuPG\\bin\\gpg.exe'
-        if not os.path.exists(gpg_path):
-            gpg_path = None
-    else:
-        gpg_path = None
-
-    if gpg_path is None:
-        # gpg is already installed in debian
-        gpg_path = install('gpg',
-                           # see https://www.gpg4win.org/download.html
-                           windows_url='https://files.gpg4win.org/gpg4win-latest.exe',
-                           # see https://gpgtools.org/
-                           osx_url='https://releases.gpgtools.org/GPG_Suite-2020.2.dmg',
-                           is_installer=True)
+    gpg_path = install('gpg',
+                       # see https://www.gpg4win.org/download.html
+                       windows_url='https://files.gpg4win.org/gpg4win-latest.exe',
+                       # see https://gpgtools.org/
+                       osx_url='https://releases.gpgtools.org/GPG_Suite-2020.2.dmg',
+                       is_installer=True)
 
     debug(f'gpg path: {gpg_path}')
 
@@ -302,13 +291,13 @@ def install(program, windows_url=None, osx_url=None, linux_package=None, is_inst
 
     debug(f'install {program}')
 
-    if system == 'Windows':
+    if running_on_windows():
         program_path = windows_install(program, windows_url, is_installer)
 
-    elif system == 'Darwin':
+    elif running_on_mac():
         program_path = osx_install(program, osx_url, is_installer)
 
-    elif system == 'Linux':
+    elif running_on_linux():
         program_path = linux_install(program, linux_package)
 
     else:
@@ -324,12 +313,11 @@ def windows_install(program, windows_url, is_installer):
 
     verbose(f'install {program}')
 
-    tempdir = get_temp_dir()
     basename = os.path.basename(url)
-    program_path = os.path.join(tempdir, basename)
+    program_path = os.path.join(TMP_DIR, basename)
 
     try:
-        download(program_path, url)
+        download(url, program_path)
 
     except Exception as e:
         debug(e)
@@ -338,7 +326,12 @@ def windows_install(program, windows_url, is_installer):
 
     else:
         if is_installer:
-            safeget_run(*[program_path])
+            GPG_DIR = 'C:\\Program Files (x86)\\GnuPG'
+            # run the installer silently
+            safeget_run(*[program_path, '/S', '/D', GPG_DIR])
+            gpg_exec = os.path.join(GPG_DIR, 'bin', 'gpg.exe')
+            if os.path.exists(gpg_exec):
+                program_path = gpg_exec
 
     return program_path
 
@@ -357,7 +350,7 @@ def osx_install(program, osx_url, is_installer):
         require_root(program)
         verbose(f'{program} not found. install...')
         program_path = os.path.join('/usr/local/bin', program)
-        download(program_path, url)
+        download(url, program_path)
         program = program_path
 
         if is_installer:
@@ -398,7 +391,7 @@ def installed(program):
     ''' Return True if program installed, else return False.'''
 
     try:
-        which(program)
+        is_installed = which(program) is not None
 
     except Exception:
         is_installed = False
@@ -413,7 +406,8 @@ def download(url, localpath):
 
     verbose(f'download {url} to {os.path.abspath(localpath)}')
 
-    if ok_to_write(localpath):
+    # if it's ok to overwrite or user gives permission to write
+    if args.overwrite_ok or ok_to_write(localpath):
         verify_source(url)
 
         ok = False
@@ -426,11 +420,7 @@ def download(url, localpath):
             attempts += 1
 
         if not ok:
-            debug(f'attempted to download {attempts} time(s)')
-            m = re.match('^\[Errno \d+\] (.*)$', str(reason))
-            if m:
-                reason = f'Error: {m.group(1)}'
-            fail(f'Unable to safely get {url}.\n\t{reason}\n\tSuggestions: Check connections or try again later.')
+            fail(get_details_for_failure(url, attempts, reason))
 
 def download_url(url, localpath):
     ''' Download the url contents to localpath.
@@ -789,7 +779,7 @@ def verify_explicit_hashes(localpath):
             if is_url(hash_or_url):
                 url = hash_or_url
                 verify_source(url)
-                hashpath = get_temp_path()
+                hashpath = get_temp_filename()
                 download(url, hashpath)
                 debug(f'hash url {url} saved in {hashpath}')
                 url_content = readfile(hashpath)
@@ -939,11 +929,11 @@ def verify_signed_messages(source):
                 try:
                     kwargs = {'stdin': infile}
                     safeget_run(*[gpg_path, '--verify'], **kwargs)
-                    verified_signedmsg_paths.append(signedmsg_path)
                 except Exception as ex:
                     debug(f'could not verify signed message saved in {signedmsg_path}')
                     debug(ex)
                 else:
+                    verified_signedmsg_paths.append(signedmsg_path)
                     verbose(f'verified pgp signed message: {signedmsg_path}')
 
     if not args.debug:
@@ -987,7 +977,7 @@ def parse_hash(text):
             hash or url
     '''
 
-    algo, _, hash_or_url = text.partition(':')
+    algo, __, hash_or_url = text.partition(':')
     algo = algo.lower()
 
     # if a url with no algo was specified, the second component would start with //
@@ -1013,7 +1003,7 @@ def extract_patterns(pattern, localpath):
     if matches:
         debug(f'matches:\n{matches}')
         for text in matches:
-            path = get_temp_path()
+            path = get_temp_filename()
             with open(path, 'w') as keysfile:
                 keysfile.write(text)
             paths.append(path)
@@ -1041,7 +1031,7 @@ def save_patterns(pattern, sources):
         if is_url(source):
             url = source
             verify_source(url)
-            path = get_temp_path()
+            path = get_temp_filename()
             download(url, path)
             debug(f'url {url} saved in {path}')
             online_paths.append(path)
@@ -1051,10 +1041,13 @@ def save_patterns(pattern, sources):
             if not os.path.exists(path):
                 fail(f'file not found: {path}')
 
-        pattern_paths = extract_patterns(pattern, path)
-        if not pattern_paths:
-            fail(f'no "{pattern}" patterns found: {path}')
-        paths.extend(pattern_paths)
+        try:
+            pattern_paths = extract_patterns(pattern, path)
+            if not pattern_paths:
+                fail(f'no "{pattern}" patterns found: {path}')
+            paths.extend(pattern_paths)
+        except UnicodeDecodeError:
+            pass
 
     return paths, online_paths
 
@@ -1100,31 +1093,6 @@ def clean_gpg_data(path):
         debug(f'gpg data file too short: {path}')
 
     return ok
-
-def get_temp_path():
-    ''' Return new temporary file path. '''
-
-    if testing and system == 'Windows':
-        global tmp_filenumber
-
-        tmp_filenumber += 1
-
-        path = f'tmp{tmp_filenumber}'
-        debug(f'temppath: {path}')
-    else:
-        _, path = mkstemp(dir=TMP_DIR)
-
-    return path
-
-def get_temp_dir():
-    ''' Get the temporary directory. '''
-
-    if testing and system == 'Windows':
-        tempdir = 'temp dir' # DEBUG
-    else:
-        tempdir = gettempdir()
-
-    return tempdir
 
 def ok_to_write(path):
     ''' If path exists and has content, ask to overwrite it.
@@ -1209,7 +1177,7 @@ def parse_args():
         without also changing create_custom_safeget.py in the safeget tools dir.
     '''
 
-    global args
+    global args, testing
 
     parser = argparse.ArgumentParser(description='Get and verify a file.')
 
@@ -1237,6 +1205,7 @@ def parse_args():
     parser.add_argument('--verbose', help='show more details', action='store_true')
     parser.add_argument('--debug', help='show debug details', action='store_true')
     parser.add_argument('--onehost', help='skip warning when sources are not separate hosts', action='store_true')
+    parser.add_argument('--overwrite_ok', help='if file found, overwrite if true', action='store_false')
     parser.add_argument('--version', help='show the product and version number', action='store_true')
 
     args = parser.parse_args()
@@ -1245,12 +1214,40 @@ def parse_args():
     if args.version:
         pass
     elif 'test' in args and args.test:
-        pass
+        testing = True
     elif args.target is None:
         print('\nSafeget requires a "target". Run "safeget --help" for usage.\n')
         sys.exit(-1)
 
     return args
+
+def get_details_for_failure(url, attempts, reason):
+    '''
+        Get the details about the failure.
+
+        >>> url = 'https://denova.com/open/safecopy'
+        >>> attempts = DEFAULT_TRIES
+        >>> reason = '[Errno 53] Unable to reach server.'
+        >>> message = get_details_for_failure(url, attempts, reason)
+        Attempted to download 20 time(s)
+        >>> 'Unable to safely get https://denova.com/open/safecopy.\\n' in message
+        True
+        >>> '\\tError: Unable to reach server.\\n' in message
+        True
+        >>> '\\tSuggestions: Check connections or try again later.' in message
+        True
+    '''
+
+    debug(f'Attempted to download {attempts} time(s)')
+    m = re.match('^\\[Errno \d+\\] (.*)$', str(reason))
+    if m:
+        reason = f'Error: {m.group(1)}'
+
+    error = f'Unable to safely get {url}.'
+    suggestions = 'Suggestions: Check connections or try again later.'
+    details = f'{error}\n\t{reason}\n\t{suggestions}'
+
+    return details
 
 def run(*command_args, **kwargs):
     ''' Run a command line.
@@ -1314,8 +1311,8 @@ def run(*command_args, **kwargs):
     except subprocess.CalledProcessError as cpe:
         debug(cpe)
         if cpe.returncode: debug(f'    returncode: {cpe.returncode}')
-        if cpe.stderr: debug('    stderr: {}' + cpe.stderr)
-        if cpe.stdout: debug('    stdout: {}' + cpe.stdout)
+        if cpe.stderr: debug(f'    stderr: {cpe.stderr}')
+        if cpe.stdout: debug(f'    stdout: {cpe.stdout}')
         raise
 
     return result
@@ -1324,20 +1321,20 @@ def get_run_args(*command_args, **kwargs):
     '''
         Get the args in list with each item a string.
 
+        >>> from tempfile import gettempdir
         >>> # 'true' ignores args '&& false'
         >>> command_args = ['true', '&&', 'false']
         >>> kwargs = {}
         >>> get_run_args(*command_args, **kwargs)
         (['true', '&&', 'false'], {})
 
-        >>> command_args = ['ls', '-l', get_temp_dir()]
+        >>> command_args = ['ls', '-l', gettempdir()]
         >>> kwargs = {}
         >>> get_run_args(*command_args, **kwargs)
         (['ls', '-l', '/tmp'], {})
 
         >>> # test command line with glob=False
-        >>> tmpdir = get_temp_dir()
-        >>> command_args = ['ls', '-l', f'{get_temp_dir()}/denova*']
+        >>> command_args = ['ls', '-l', f'{gettempdir()}/denova*']
         >>> kwargs = {'glob': False}
         >>> get_run_args(*command_args, **kwargs)
         (['ls', '-l', '/tmp/denova*'], {})
@@ -1373,7 +1370,8 @@ def get_run_args(*command_args, **kwargs):
     return args, kwargs
 
 def run_command_after(command):
-    ''' Run the command after downloading and verifying file.
+    '''
+        Run the command after downloading and verifying file.
     '''
 
     MULTIPLE_COMMANDS = ' && '
@@ -1394,6 +1392,88 @@ def run_command_after(command):
     safeget_run(*command_args, **kwargs)
 
     notice('Installed.')
+
+def running_on_linux():
+    '''
+        Return True if running on any
+        Linux OS. Otherwise, return False.
+
+        >>> running_on_linux()
+        True
+    '''
+
+    return system == 'Linux'
+
+def running_on_mac():
+    '''
+        Return True if running on any
+        Mac OS. Otherwise, return False.
+
+        >>> running_on_mac()
+        False
+    '''
+
+    return system == 'Darwin' or system == 'macos' or 'mac os' in system
+
+def running_on_windows():
+    '''
+        Return True if running on any
+        Windows OS. Otherwise, return False.
+
+        >>> running_on_windows()
+        False
+    '''
+
+    return system == 'Windows'
+
+
+def get_temp_filename():
+    '''
+        Return new temporary file path
+        that is persistent, but can be
+        accessed by other apps than this one.
+
+        >>> path = get_temp_filename()
+        >>> os.path.dirname(path) == TMP_DIR
+        True
+        >>> len(os.path.basename(path)) == 8
+        True
+    '''
+
+    return os.path.join(TMP_DIR, get_random_string(8))
+
+def delete_temp_dir():
+    '''
+        Delete the temporary dir created.
+
+        >>> os.path.exists(TMP_DIR)
+        True
+        >>> delete_temp_dir()
+    '''
+
+    if os.path.exists(TMP_DIR):
+        rmtree(TMP_DIR, ignore_errors=True)
+
+def get_random_string(digits):
+    '''
+        Get a random string, digits long
+        starting and ending with a letter.
+
+        >>> s = get_random_string(8)
+        >>> len(s) == 8
+        True
+    '''
+
+    Random_Letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
+    Random_Chars = Random_Letters + '0123456789'
+
+    random_string = choice(Random_Letters)
+    if digits > 2:
+        for __ in range(digits - 2):
+            random_string += choice(Random_Chars)
+    random_string += choice(Random_Letters)
+
+    return random_string
 
 
 if __name__ == "__main__":
