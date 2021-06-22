@@ -14,7 +14,7 @@
     to verify safeget itself.
 
     Copyright 2019-2021 DeNova
-    Last modified: 2021-03-08
+    Last modified: 2021-06-20
 '''
 
 import argparse
@@ -38,7 +38,7 @@ from urllib.parse import urlencode, urlparse
 from urllib.request import build_opener, urlopen, HTTPCookieProcessor, ProxyHandler, Request
 
 
-CURRENT_VERSION = '1.4.8'
+CURRENT_VERSION = '1.4.9'
 COPYRIGHT = 'Copyright 2019-2021 DeNova'
 LICENSE = 'GPLv3'
 
@@ -1181,7 +1181,10 @@ def parse_args():
 
     parser = argparse.ArgumentParser(description='Get and verify a file.')
 
-    parser.add_argument('target', nargs='?', help='url of file to download, or file path')
+    parser.add_argument('target',
+                        # so we can provide a better 'required' message
+                        nargs='?', default=None,
+                        help='url to get and verify, or file path to verify; must be the first arg on the command line.')
 
     parser.add_argument('--size', help='file size in bytes') # not an int to allow commas
     parser.add_argument('--hash', nargs='*',
@@ -1215,8 +1218,9 @@ def parse_args():
         pass
     elif 'test' in args and args.test:
         testing = True
+    # if target missing, provide a better message
     elif args.target is None:
-        print('\nSafeget requires a "target". Run "safeget --help" for usage.\n')
+        print("\nsafeget: error: the first arg must be the url to get and verify, or file path to verify.\n")
         sys.exit(-1)
 
     return args

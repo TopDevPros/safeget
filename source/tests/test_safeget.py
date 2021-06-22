@@ -3,7 +3,7 @@
     Tests safeget.
 
     Copyright 2019-2021 DeNova
-    Last modified: 2021-03-07
+    Last modified: 2021-06-16
 
     Test safeget by running the app.
 
@@ -40,13 +40,13 @@ SAFEGET_APP = os.path.abspath(os.path.join(CURRENT_DIR, '..', 'safeget'))
 TMP_DIR = os.path.join(gettempdir(), 'safeget.test')
 
 # this group of constants must be updated whenever the version changes
-BITCOIN_VERSION = '0.21.0'
-BITCOIN_FILESIZE = 33433481
+BITCOIN_VERSION = '0.21.1'
+BITCOIN_FILESIZE = 33603596
 # explicit hashes
 # hash can be a hex string or url, with an algo prefix
-BITCOIN_HASH1 = 'SHA256:da7766775e3f9c98d7a9145429f2be8297c2672fe5b118fd3dc2411fb48e0032'
-BITCOIN_HASH2 = 'SHA512:6969cb86bf932c402b5a1cb4ee22c05a8c2cc4c0842b70cbf34a6c2200703731ad2dcdad5b390eee0a8e4dea5340ef6873232be6e9ec209373524369038a92e5'
-BITCOIN_HASH3 = 'MD5:be2caf516b721248af85e80882edc26b'
+BITCOIN_HASH1 = 'SHA256:366eb44a7a0aa5bd342deea215ec19a184a11f2ca22220304ebb20b9c8917e2b'
+BITCOIN_HASH2 = 'SHA512:41b23363507ef2890d1adf02598885217d4d31dc75c7f6c89494f24cf633fda51d0545cd4bff1b0284211392280e771162c0f2b21116e217fee70bafa3129676'
+BITCOIN_HASH3 = 'MD5:e283a98b5e9f0b58e625e1dde661201d'
 
 # file to verify
 # url created below
@@ -64,7 +64,7 @@ BITCOIN_LOCAL_SIGNED_HASH = 'SHA256:' + BITCOIN_LOCAL_SIGNED_HASHES_SOURCE
 # url/file with pgp pubkeys
 BITCOIN_ONLINE_PUBKEY = 'https://raw.githubusercontent.com/bitcoin-core/bitcoincore.org/master/keys/laanwj-releases.asc'
 # url/file with signed pgp messages containing hashes
-BITCOIN_ONLINE_SIGNED_HASHES_SOURCE = 'https://denova.com/open/safeget/hashes/bitcoin-core-0.21.0/SHA256SUMS.asc'
+BITCOIN_ONLINE_SIGNED_HASHES_SOURCE = f'https://bitcoin.org/bin/bitcoin-core-{BITCOIN_VERSION}/SHA256SUMS.asc'
 BITCOIN_ONLINE_SIGNED_HASH = 'SHA256:' + BITCOIN_ONLINE_SIGNED_HASHES_SOURCE
 # url/file to verify
 BITCOIN_ONLINE_TEMPLATE = 'https://bitcoin.org/bin/bitcoin-core-{version}/{filename}'
