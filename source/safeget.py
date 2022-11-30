@@ -1,6 +1,8 @@
 #! /usr/bin/env python3
 '''
     Safeget downloads and verifies files from online.
+    It requires signed hashes, signed message, or a signature
+    verified with a matching PGP key.
 
     If you would like a simple custom safeget for your app
     which embeds all the parameters usually passed on the
@@ -13,8 +15,8 @@
     This is intentionally a single file to make it easier
     to verify safeget itself.
 
-    Copyright 2019-2021 DeNova
-    Last modified: 2021-06-20
+    Copyright 2019-2022 DeNova
+    Last modified: 2022-11-23
 '''
 
 import argparse
@@ -38,8 +40,8 @@ from urllib.parse import urlencode, urlparse
 from urllib.request import build_opener, urlopen, HTTPCookieProcessor, ProxyHandler, Request
 
 
-CURRENT_VERSION = '1.4.9'
-COPYRIGHT = 'Copyright 2019-2021 DeNova'
+CURRENT_VERSION = '1.5.0'
+COPYRIGHT = 'Copyright 2019-2022 DeNova'
 LICENSE = 'GPLv3'
 
 DEFAULT_TRIES = 20 # wget default
@@ -497,7 +499,7 @@ def verify_args():
     if args.pubkey and not(args.sig or
                            args.signedmsg or
                            args.signedhash):
-        fail('PGP public key found. Did you want to include a file signature, or signed message, or signed hash?')
+        fail('PGP public key found, but you also need to include a file signature (--sig), or signed message (--signedmsg), or signed hash (--signedhash)')
 
     verify_source(args.target)
 

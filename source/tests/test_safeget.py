@@ -2,8 +2,8 @@
 '''
     Tests safeget.
 
-    Copyright 2019-2021 DeNova
-    Last modified: 2021-06-16
+    Copyright 2019-2022 DeNova
+    Last modified: 2022-11-23
 
     Test safeget by running the app.
 
@@ -35,18 +35,17 @@ except ImportError:
 
 CURRENT_DIR = os.path.realpath(os.path.abspath(os.path.dirname(__file__)))
 
-
 SAFEGET_APP = os.path.abspath(os.path.join(CURRENT_DIR, '..', 'safeget'))
 TMP_DIR = os.path.join(gettempdir(), 'safeget.test')
 
 # this group of constants must be updated whenever the version changes
-BITCOIN_VERSION = '0.21.1'
-BITCOIN_FILESIZE = 33603596
+BITCOIN_VERSION = '23.0'
+BITCOIN_FILESIZE = 44173568
 # explicit hashes
 # hash can be a hex string or url, with an algo prefix
-BITCOIN_HASH1 = 'SHA256:366eb44a7a0aa5bd342deea215ec19a184a11f2ca22220304ebb20b9c8917e2b'
-BITCOIN_HASH2 = 'SHA512:41b23363507ef2890d1adf02598885217d4d31dc75c7f6c89494f24cf633fda51d0545cd4bff1b0284211392280e771162c0f2b21116e217fee70bafa3129676'
-BITCOIN_HASH3 = 'MD5:e283a98b5e9f0b58e625e1dde661201d'
+BITCOIN_HASH1 = 'SHA256:2cca490c1f2842884a3c5b0606f179f9f937177da4eadd628e3f7fd7e25d26d0'
+BITCOIN_HASH2 = 'SHA512:11bebbedd5c3ecdda92d19cd82ef08f4ee371cbf948f011fbc29b6c72d04012abdc4490fc0c6c92076d4ce84fe7c7df4d1a89ce9d043d84ff744fbb992762722'
+BITCOIN_HASH3 = 'MD5:fc4427b26a72fcc1556a9b07f3444013'
 
 # file to verify
 # url created below
@@ -64,10 +63,12 @@ BITCOIN_LOCAL_SIGNED_HASH = 'SHA256:' + BITCOIN_LOCAL_SIGNED_HASHES_SOURCE
 # url/file with pgp pubkeys
 BITCOIN_ONLINE_PUBKEY = 'https://raw.githubusercontent.com/bitcoin-core/bitcoincore.org/master/keys/laanwj-releases.asc'
 # url/file with signed pgp messages containing hashes
-BITCOIN_ONLINE_SIGNED_HASHES_SOURCE = f'https://bitcoin.org/bin/bitcoin-core-{BITCOIN_VERSION}/SHA256SUMS.asc'
-BITCOIN_ONLINE_SIGNED_HASH = 'SHA256:' + BITCOIN_ONLINE_SIGNED_HASHES_SOURCE
+BITCOIN_ONLINE_SIG = f'https://bitcoincore.org/bin/bitcoin-core-{BITCOIN_VERSION}/SHA256SUMS.asc'
+BITCOIN_ONLINE_SIGNED_HASHES_SOURCE = f'https://bitcoincore.org/bin/bitcoin-core-{BITCOIN_VERSION}/SHA256SUMS'
+BITCOIN_ONLINE_SIGNED_HASH = f'SHA256:{BITCOIN_ONLINE_SIGNED_HASHES_SOURCE}'
+BITCOIN_ONLINE_HASHES= f'SHA256:https://bitcoincore.org/bin/bitcoin-core-{BITCOIN_VERSION}/SHA256SUMS'
 # url/file to verify
-BITCOIN_ONLINE_TEMPLATE = 'https://bitcoin.org/bin/bitcoin-core-{version}/{filename}'
+BITCOIN_ONLINE_TEMPLATE = 'https://bitcoincore.org/bin/bitcoin-core-{version}/{filename}'
 BITCOIN_ONLINE_TARGET = BITCOIN_ONLINE_TEMPLATE.format(version=BITCOIN_VERSION, filename=BITCOIN_FILENAME)
 
 # file to verify
@@ -125,8 +126,8 @@ class TestSafeget(TestCase):
                                 '--pubkey',
                                 BITCOIN_ONLINE_PUBKEY,
 
-                                '--signedhash',
-                                BITCOIN_ONLINE_SIGNED_HASH)
+                                '--sig',
+                                BITCOIN_ONLINE_SIG)
 
     def test_app(self):
         ''' Test the app locally. '''
@@ -141,8 +142,8 @@ class TestSafeget(TestCase):
                             '--pubkey',
                             BITCOIN_ONLINE_PUBKEY,
 
-                            '--signedhash',
-                            BITCOIN_ONLINE_SIGNED_HASH)
+                            '--sig',
+                            BITCOIN_ONLINE_SIG)
 
     def test_explicit_hashes(self):
         ''' Test the explicit hashes. '''
