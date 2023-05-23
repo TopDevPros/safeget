@@ -6,17 +6,15 @@
 
     If you would like a simple custom safeget for your app
     which embeds all the parameters usually passed on the
-    command line, contact support@denova.com. It's free.
+    command line, contact support@github.com/safeapps. It's free.
     Your users then run that simple small program to download
     and fully verify your app, without the hassles.
-
-    Learn more at https://denova.com/open/safeget/
 
     This is intentionally a single file to make it easier
     to verify safeget itself.
 
-    Copyright 2019-2022 DeNova
-    Last modified: 2022-11-23
+    Copyright 2019-2023 safeapps
+    Last modified: 2023-05-15
 '''
 
 import argparse
@@ -40,8 +38,8 @@ from urllib.parse import urlencode, urlparse
 from urllib.request import build_opener, urlopen, HTTPCookieProcessor, ProxyHandler, Request
 
 
-CURRENT_VERSION = '1.5.0'
-COPYRIGHT = 'Copyright 2019-2022 DeNova'
+CURRENT_VERSION = '1.5.1'
+COPYRIGHT = 'Copyright 2019-2023 safeapps'
 LICENSE = 'GPLv3'
 
 DEFAULT_TRIES = 20 # wget default
@@ -155,7 +153,7 @@ def more():
     ''' Let them know where to get more safeget commands. '''
 
     print('\n')
-    print('Find more safegets at https://denova.com/open/safeget/custom/')
+    print('Find more safegets at https://github.com/safeapps/open/safeget/custom/')
     print('\n')
 
 def notice(msg):
@@ -578,7 +576,7 @@ def check_safeget_itself(host=None, target=None):
 
         The parameters are only passed for testing.
     '''
-    HEADERS = {'User-Agent': 'DeNova Safeget 1.0'}
+    HEADERS = {'User-Agent': 'solidlibs Safeget 1.0'}
 
     ok = True
     error_message = None
@@ -623,7 +621,7 @@ def setup_safeget_check(host=None, target=None):
         The parameters are only passed for testing.
     '''
 
-    HOST = 'https://denova.com'
+    HOST = 'https://github.com/safeapps'
     API_URL = 'open/safeget/api/'
 
     if host is None:
@@ -1231,12 +1229,12 @@ def get_details_for_failure(url, attempts, reason):
     '''
         Get the details about the failure.
 
-        >>> url = 'https://denova.com/open/safecopy'
+        >>> url = 'https://github.com/safeapps/open/safecopy'
         >>> attempts = DEFAULT_TRIES
         >>> reason = '[Errno 53] Unable to reach server.'
         >>> message = get_details_for_failure(url, attempts, reason)
         Attempted to download 20 time(s)
-        >>> 'Unable to safely get https://denova.com/open/safecopy.\\n' in message
+        >>> 'Unable to safely get https://github.com/safeapps/open/safecopy.\\n' in message
         True
         >>> '\\tError: Unable to reach server.\\n' in message
         True
@@ -1340,10 +1338,10 @@ def get_run_args(*command_args, **kwargs):
         (['ls', '-l', '/tmp'], {})
 
         >>> # test command line with glob=False
-        >>> command_args = ['ls', '-l', f'{gettempdir()}/denova*']
+        >>> command_args = ['ls', '-l', f'{gettempdir()}/solidlibs*']
         >>> kwargs = {'glob': False}
         >>> get_run_args(*command_args, **kwargs)
-        (['ls', '-l', '/tmp/denova*'], {})
+        (['ls', '-l', '/tmp/solidlibs*'], {})
     '''
 
     if kwargs is None:
