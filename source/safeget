@@ -4,17 +4,11 @@
     It requires signed hashes, signed message, or a signature
     verified with a matching PGP key.
 
-    If you would like a simple custom safeget for your app
-    which embeds all the parameters usually passed on the
-    command line, contact support@github.com/safeapps. It's free.
-    Your users then run that simple small program to download
-    and fully verify your app, without the hassles.
-
     This is intentionally a single file to make it easier
     to verify safeget itself.
 
-    Copyright 2019-2023 safeapps
-    Last modified: 2023-05-15
+    Copyright 2019-2023 TopDevPros
+    Last modified: 2023-10-07
 '''
 
 import argparse
@@ -38,8 +32,8 @@ from urllib.parse import urlencode, urlparse
 from urllib.request import build_opener, urlopen, HTTPCookieProcessor, ProxyHandler, Request
 
 
-CURRENT_VERSION = '1.5.1'
-COPYRIGHT = 'Copyright 2019-2023 safeapps'
+CURRENT_VERSION = '1.5.6'
+COPYRIGHT = 'Copyright 2019-2023 TopDevPros'
 LICENSE = 'GPLv3'
 
 DEFAULT_TRIES = 20 # wget default
@@ -153,7 +147,7 @@ def more():
     ''' Let them know where to get more safeget commands. '''
 
     print('\n')
-    print('Find more safegets at https://github.com/safeapps/open/safeget/custom/')
+    print('Find more safegets at https://codeberg.org/topdevpros/safeget/custom/')
     print('\n')
 
 def notice(msg):
@@ -621,7 +615,7 @@ def setup_safeget_check(host=None, target=None):
         The parameters are only passed for testing.
     '''
 
-    HOST = 'https://github.com/safeapps'
+    HOST = 'https://codeberg.org/topdevpros/safeget'
     API_URL = 'open/safeget/api/'
 
     if host is None:
@@ -1229,12 +1223,12 @@ def get_details_for_failure(url, attempts, reason):
     '''
         Get the details about the failure.
 
-        >>> url = 'https://github.com/safeapps/open/safecopy'
+        >>> url = 'https://codeberg.org/topdevpros/safecopy'
         >>> attempts = DEFAULT_TRIES
         >>> reason = '[Errno 53] Unable to reach server.'
         >>> message = get_details_for_failure(url, attempts, reason)
         Attempted to download 20 time(s)
-        >>> 'Unable to safely get https://github.com/safeapps/open/safecopy.\\n' in message
+        >>> 'Unable to safely get https://codeberg.org/topdevpros/safecopy.\\n' in message
         True
         >>> '\\tError: Unable to reach server.\\n' in message
         True

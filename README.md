@@ -37,9 +37,9 @@ Install
 
 If your operating system offers a safeget package, install it.
 
-But safeget isn't in many package managers yet. Get it from PyPi with:
+But safeget isn't in many package managers yet. Get it from CodeBerg with:
 
-    pip3 install safeget
+    git clone https://codeberg.org/topdevpros/safeget.git
 
 Or download the safeget-installer and run it:
 
