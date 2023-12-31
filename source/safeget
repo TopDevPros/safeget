@@ -8,7 +8,7 @@
     to verify safeget itself.
 
     Copyright 2019-2023 TopDevPros
-    Last modified: 2023-10-07
+    Last modified: 2023-12-25
 '''
 
 import argparse
@@ -32,7 +32,7 @@ from urllib.parse import urlencode, urlparse
 from urllib.request import build_opener, urlopen, HTTPCookieProcessor, ProxyHandler, Request
 
 
-CURRENT_VERSION = '1.5.6'
+CURRENT_VERSION = '1.5.7'
 COPYRIGHT = 'Copyright 2019-2023 TopDevPros'
 LICENSE = 'GPLv3'
 
