@@ -35,7 +35,9 @@ Safeget requires python3. You can run it on Windows, Linux, or Mac OS X.
 Install
 -------
 
-If your operating system offers a safeget package, install it.
+pip install safeget
+
+Or, if your operating system offers a safeget package, install it.
 
 But safeget isn't in many package managers yet. Get it from CodeBerg with:
 
@@ -46,6 +48,12 @@ Or download the safeget-installer and run it:
     python3 safeget-installer
 
 Windows users: If you do not have GPG installed on your Windows computer, then you'll need to run Safeget as an administrator the first time you run it so that Safeget can install GPG onto your system. To open a command prompt as an administrator, start to search for "command prompt". An area near the search box appears with an option to "Execute as administrator". Select that option and then you can issue any Safeget command.
+
+
+Updates
+-------
+
+All future updates are available at https://codeberg.org/topdevpros/safeget.git
 
 
 How it Works
